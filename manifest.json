@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "dki.hijri-calendar",
+  "name": "Hijri Calendar",
+  "version": "1.0.0",
+  "author": "Idris Akorede Ibrahim",
+  "description": "A Gregorian clock with an offline Hijri date and calendar popup for the Omarchy bar.",
+  "license": "MIT",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "barWidget": {
+    "displayName": "Hijri Calendar",
+    "description": "Shows the current Gregorian time alongside the tabular Hijri date.",
+    "category": "Time",
+    "allowMultiple": false,
+    "defaults": {
+      "format": "dddd HH:mm",
+      "verticalFormat": "HH\n—\nmm"
+    }
+  }
+}
