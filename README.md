@@ -13,13 +13,7 @@ The Hijri conversion is fully offline and deterministic. It uses the tabular (ci
 
 ## Install
 
-After this repository is published, install the public Git URL with:
-
-```bash
-omarchy plugin add <repository-url> --enable --yes
-```
-
-After enabling, Omarchy adds it to the right bar section. Move it if desired:
+The public Git install URL will be added with the first release. After enabling, Omarchy adds the widget to the right bar section. Move it if desired:
 
 ```bash
 omarchy bar plugin move dki.hijri-calendar --section center
