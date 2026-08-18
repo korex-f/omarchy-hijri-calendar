@@ -54,7 +54,10 @@ BarWidget {
 
   function formatted(date) {
     var gregorian = Qt.formatDateTime(date, activeFormat.replace(/ww/g, Model.isoWeekLiteral(date.getFullYear(), date.getMonth(), date.getDate())))
-    return gregorian + "  ·  " + Model.hijriDate(date)
+    // The Umm al-Qura table covers 1900-2076; outside that window the widget
+    // falls back to the Gregorian label alone.
+    var hijri = Model.hijriDate(date)
+    return hijri ? gregorian + "  ·  " + hijri : gregorian
   }
 
   // ---- Calendar popup. Shape contract for shell.summon/hide/toggle

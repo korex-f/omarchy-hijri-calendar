@@ -10,7 +10,7 @@
   "entryPoints": { "barWidget": "BarWidget.qml" },
   "barWidget": {
     "displayName": "Hijri Calendar",
-    "description": "Shows the current Gregorian time alongside the tabular Hijri date.",
+    "description": "Shows the current Gregorian time alongside the Umm al-Qura Hijri date.",
     "category": "Time",
     "allowMultiple": false,
     "defaults": {

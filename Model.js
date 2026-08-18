@@ -1,34 +1,108 @@
 // Pure date and format math for the clock widget and its calendar panel.
 // Everything here is locale- and Qt-free so it can be unit tested under node
-// (test/shell.d/clock-test.sh); the QML owns month/weekday naming through
+// (tests/model.test.js); the QML owns month/weekday naming through
 // Qt.locale().
 
 var MS_PER_DAY = 86400000
 
-// Tabular (civil) Hijri conversion. It is deterministic and works offline;
-// local moon-sighting calendars can differ by a day.
+// Umm al-Qura Hijri conversion. The Umm al-Qura calendar is the official
+// civil Islamic calendar of Saudi Arabia: month starts are set by observation
+// and committee decision rather than by a fixed arithmetic rule, so the
+// conversion is table-driven rather than computed. The table encodes the
+// decisions for Hijri years 1318-1500 (Gregorian 1900-2076); dates outside
+// that window return null and the widget shows the Gregorian label alone.
+//
+// The table is derived from data published by the King Abdulaziz City for
+// Science and Technology (KACST) and distributed under MIT by Aric Camarata's
+// hijri-core project. One entry per Hijri year, in order:
+// [Gregorian year, month, day of 1 Muharram, 12-bit days-per-month mask].
+// Bit i (from bit 0) corresponds to month i+1: 1 = 30 days, 0 = 29 days.
 var HIJRI_MONTHS = ["Muharram", "Safar", "Rabi al-Awwal", "Rabi al-Thani", "Jumada al-Awwal", "Jumada al-Thani", "Rajab", "Shaban", "Ramadan", "Shawwal", "Dhu al-Qidah", "Dhu al-Hijjah"]
+
+var UMM_AL_QURA = [
+  [1900, 4, 30, 0x2ea], [1901, 4, 19, 0x6e9], [1902, 4, 9, 0xed2], [1903, 3, 30, 0xea4],
+  [1904, 3, 18, 0xd4a], [1905, 3, 7, 0xa96], [1906, 2, 24, 0x536], [1907, 2, 13, 0xab5],
+  [1908, 2, 3, 0xdaa], [1909, 1, 23, 0xba4], [1910, 1, 12, 0xb49], [1911, 1, 1, 0xa93],
+  [1911, 12, 21, 0x52b], [1912, 12, 9, 0xa57], [1913, 11, 29, 0x4b6], [1914, 11, 18, 0xab5],
+  [1915, 11, 8, 0x5aa], [1916, 10, 27, 0xd55], [1917, 10, 17, 0xd2a], [1918, 10, 6, 0xa56],
+  [1919, 9, 25, 0x4ae], [1920, 9, 13, 0x95d], [1921, 9, 3, 0x2ec], [1922, 8, 23, 0x6d5],
+  [1923, 8, 13, 0x6aa], [1924, 8, 1, 0x555], [1925, 7, 21, 0x4ab], [1926, 7, 10, 0x95b],
+  [1927, 6, 30, 0x2ba], [1928, 6, 18, 0x575], [1929, 6, 8, 0xbb2], [1930, 5, 29, 0x764],
+  [1931, 5, 18, 0x749], [1932, 5, 6, 0x655], [1933, 4, 25, 0x2ab], [1934, 4, 14, 0x55b],
+  [1935, 4, 4, 0xada], [1936, 3, 24, 0x6d4], [1937, 3, 13, 0xec9], [1938, 3, 3, 0xd92],
+  [1939, 2, 20, 0xd25], [1940, 2, 9, 0xa4d], [1941, 1, 28, 0x2ad], [1942, 1, 17, 0x56d],
+  [1943, 1, 7, 0xb6a], [1943, 12, 28, 0xb52], [1944, 12, 16, 0xaa5], [1945, 12, 5, 0xa4b],
+  [1946, 11, 24, 0x497], [1947, 11, 13, 0x937], [1948, 11, 2, 0x2b6], [1949, 10, 22, 0x575],
+  [1950, 10, 12, 0xd6a], [1951, 10, 2, 0xd52], [1952, 9, 20, 0xa96], [1953, 9, 9, 0x92d],
+  [1954, 8, 29, 0x25d], [1955, 8, 18, 0x4dd], [1956, 8, 7, 0xada], [1957, 7, 28, 0x5d4],
+  [1958, 7, 17, 0xda9], [1959, 7, 7, 0xd52], [1960, 6, 25, 0xaaa], [1961, 6, 14, 0x4d6],
+  [1962, 6, 3, 0x9b6], [1963, 5, 24, 0x374], [1964, 5, 12, 0x769], [1965, 5, 2, 0x752],
+  [1966, 4, 21, 0x6a5], [1967, 4, 10, 0x54b], [1968, 3, 29, 0xaab], [1969, 3, 19, 0x55a],
+  [1970, 3, 8, 0xad5], [1971, 2, 26, 0xdd2], [1972, 2, 16, 0xda4], [1973, 2, 4, 0xd49],
+  [1974, 1, 24, 0xa95], [1975, 1, 13, 0x52d], [1976, 1, 2, 0xa5d], [1976, 12, 22, 0x55a],
+  [1977, 12, 11, 0xad5], [1978, 12, 1, 0x6aa], [1979, 11, 20, 0x695], [1980, 11, 8, 0x52b],
+  [1981, 10, 28, 0xa57], [1982, 10, 18, 0x4ae], [1983, 10, 7, 0x976], [1984, 9, 26, 0x56c],
+  [1985, 9, 15, 0xb55], [1986, 9, 5, 0xaaa], [1987, 8, 25, 0xa55], [1988, 8, 13, 0x4ad],
+  [1989, 8, 2, 0x95d], [1990, 7, 23, 0x2da], [1991, 7, 12, 0x5d9], [1992, 7, 1, 0xdb2],
+  [1993, 6, 21, 0xba4], [1994, 6, 10, 0xb4a], [1995, 5, 30, 0xa55], [1996, 5, 18, 0x2b5],
+  [1997, 5, 7, 0x575], [1998, 4, 27, 0xb6a], [1999, 4, 17, 0xbd2], [2000, 4, 6, 0xbc4],
+  [2001, 3, 26, 0xb89], [2002, 3, 15, 0xa95], [2003, 3, 4, 0x52d], [2004, 2, 21, 0x5ad],
+  [2005, 2, 10, 0xb6a], [2006, 1, 31, 0x6d4], [2007, 1, 20, 0xdc9], [2008, 1, 10, 0xd92],
+  [2008, 12, 29, 0xaa6], [2009, 12, 18, 0x956], [2010, 12, 7, 0x2ae], [2011, 11, 26, 0x56d],
+  [2012, 11, 15, 0x36a], [2013, 11, 4, 0xb55], [2014, 10, 25, 0xaaa], [2015, 10, 14, 0x94d],
+  [2016, 10, 2, 0x49d], [2017, 9, 21, 0x95d], [2018, 9, 11, 0x2ba], [2019, 8, 31, 0x5b5],
+  [2020, 8, 20, 0x5aa], [2021, 8, 9, 0xd55], [2022, 7, 30, 0xa9a], [2023, 7, 19, 0x92e],
+  [2024, 7, 7, 0x26e], [2025, 6, 26, 0x55d], [2026, 6, 16, 0xada], [2027, 6, 6, 0x6d4],
+  [2028, 5, 25, 0x6a5], [2029, 5, 14, 0x54b], [2030, 5, 3, 0xa97], [2031, 4, 23, 0x54e],
+  [2032, 4, 11, 0xaae], [2033, 4, 1, 0x5ac], [2034, 3, 21, 0xba9], [2035, 3, 11, 0xd92],
+  [2036, 2, 28, 0xb25], [2037, 2, 16, 0x64b], [2038, 2, 5, 0xcab], [2039, 1, 26, 0x55a],
+  [2040, 1, 15, 0xb55], [2041, 1, 4, 0x6d2], [2041, 12, 24, 0xea5], [2042, 12, 14, 0xe4a],
+  [2043, 12, 3, 0xa95], [2044, 11, 21, 0x52d], [2045, 11, 10, 0xaad], [2046, 10, 31, 0x36c],
+  [2047, 10, 20, 0x759], [2048, 10, 9, 0x6d2], [2049, 9, 28, 0x695], [2050, 9, 17, 0x52d],
+  [2051, 9, 6, 0xa5b], [2052, 8, 26, 0x4ba], [2053, 8, 15, 0x9ba], [2054, 8, 5, 0x3b4],
+  [2055, 7, 25, 0xb69], [2056, 7, 14, 0xb52], [2057, 7, 3, 0xaa6], [2058, 6, 22, 0x4b6],
+  [2059, 6, 11, 0x96d], [2060, 5, 31, 0x2ec], [2061, 5, 20, 0x6d9], [2062, 5, 10, 0xeb2],
+  [2063, 4, 30, 0xd54], [2064, 4, 18, 0xd2a], [2065, 4, 7, 0xa56], [2066, 3, 27, 0x4ae],
+  [2067, 3, 16, 0x96d], [2068, 3, 5, 0xd6a], [2069, 2, 23, 0xb54], [2070, 2, 12, 0xb29],
+  [2071, 2, 1, 0xa93], [2072, 1, 21, 0x52b], [2073, 1, 9, 0xa57], [2073, 12, 30, 0x536],
+  [2074, 12, 19, 0xab5], [2075, 12, 9, 0x6aa], [2076, 11, 27, 0xe93]
+]
+
+// First Hijri year in UMM_AL_QURA; entry i is year HIJRI_TABLE_YEAR + i.
+var HIJRI_TABLE_YEAR = 1318
 
 function hijriDate(date) {
   var year = date.getFullYear()
-  var month = date.getMonth() + 1
+  var month = date.getMonth()
   var day = date.getDate()
-  var a = Math.floor((14 - month) / 12)
-  var y = year + 4800 - a
-  var m = month + (12 * a) - 3
-  var julianDay = day + Math.floor((153 * m + 2) / 5) + (365 * y)
-    + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045
-  var l = julianDay - 1948440 + 10632
-  var n = Math.floor((l - 1) / 10631)
-  l = l - (10631 * n) + 354
-  var j = Math.floor((10985 - l) / 5316) * Math.floor((50 * l) / 17719)
-    + Math.floor(l / 5670) * Math.floor((43 * l) / 15238)
-  l = l - Math.floor((30 - j) / 15) * Math.floor((17719 * j) / 50)
-    - Math.floor(j / 16) * Math.floor((15238 * l) / 43) + 29
-  var hijriMonth = Math.floor((24 * l) / 709)
-  var hijriDay = l - Math.floor((709 * hijriMonth) / 24)
-  var hijriYear = (30 * n) + j - 30
-  return hijriDay + " " + HIJRI_MONTHS[hijriMonth - 1] + " " + hijriYear + " AH"
+  var utc = Date.UTC(year, month, day)
+
+  // Binary search for the last entry whose 1 Muharram is on or before the
+  // date — the entry whose Hijri year the date falls in.
+  var lo = 0
+  var hi = UMM_AL_QURA.length - 1
+  var found = -1
+  while (lo <= hi) {
+    var mid = (lo + hi) >> 1
+    var entry = UMM_AL_QURA[mid]
+    if (Date.UTC(entry[0], entry[1] - 1, entry[2]) <= utc) {
+      found = mid
+      lo = mid + 1
+    } else {
+      hi = mid - 1
+    }
+  }
+  if (found === -1) return null
+
+  var rec = UMM_AL_QURA[found]
+  var remaining = Math.round((utc - Date.UTC(rec[0], rec[1] - 1, rec[2])) / MS_PER_DAY)
+  for (var i = 0; i < 12; i++) {
+    var dim = (rec[3] & (1 << i)) ? 30 : 29
+    if (remaining < dim)
+      return (remaining + 1) + " " + HIJRI_MONTHS[i] + " " + (HIJRI_TABLE_YEAR + found) + " AH"
+    remaining -= dim
+  }
+  return null
 }
 
 // Weekday indices match both JS Date.getDay() and QML's Locale.Sunday…
