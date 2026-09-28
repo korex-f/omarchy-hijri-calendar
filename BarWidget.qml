@@ -60,10 +60,25 @@ BarWidget {
     return hijri ? gregorian + "  ·  " + hijri : gregorian
   }
 
+  // The bar reveals inactive center indicators when any part of the center is
+  // hovered. Those extra widgets change the center width and slide this clock
+  // under a stationary pointer. Keep that reveal suppressed while interacting
+  // with the calendar, matching the state used while its panel is open.
+  function setCenterHoverRevealSuppressed(value) {
+    if (root.bar && typeof root.bar.setCenterHoverRevealSuppressed === "function")
+      root.bar.setCenterHoverRevealSuppressed(value)
+  }
+
+  function updateCenterHoverRevealSuppression() {
+    root.setCenterHoverRevealSuppressed(root.opened || calendarHover.hovered)
+  }
+
   // ---- Calendar popup. Shape contract for shell.summon/hide/toggle
   //      routing: Bar.findPanelWidget requires open/close/opened on the
   //      bar-widget root.
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
+
+  onOpenedChanged: updateCenterHoverRevealSuppression()
 
   function open() {
     if (panelLoader.item) panelLoader.item.open()
@@ -158,6 +173,12 @@ BarWidget {
       if (b === Qt.RightButton) root.cycleFormat()
       else if (b === Qt.MiddleButton) { if (root.bar) root.bar.run("omarchy-menu-timezone") }
       else root.togglePanel()
+    }
+
+    HoverHandler {
+      id: calendarHover
+      onHoveredChanged: root.updateCenterHoverRevealSuppression()
+      Component.onDestruction: root.setCenterHoverRevealSuppressed(false)
     }
 
     Column {
